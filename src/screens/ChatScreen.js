@@ -11,12 +11,11 @@ export default function ChatScreen({ route, navigation }) {
   const { chatId, chatName } = route.params;
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [uid, setUid] = useState('');
+  const uid = authService.getUser()?.uid || '';
   const listRef = useRef();
 
   useEffect(() => {
     navigation.setOptions({ title: chatName });
-    authService.currentUser().then(u => { if (u) setUid(u.uid); });
   }, []);
 
   useEffect(() => {
@@ -54,7 +53,6 @@ export default function ChatScreen({ route, navigation }) {
       style={s.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}>
-
       <FlatList
         ref={listRef}
         data={messages}
@@ -62,11 +60,8 @@ export default function ChatScreen({ route, navigation }) {
         renderItem={renderMsg}
         contentContainerStyle={{ padding: 12, paddingBottom: 20 }}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-        ListEmptyComponent={
-          <Text style={s.empty}>No messages yet. Say hi! 👋</Text>
-        }
+        ListEmptyComponent={<Text style={s.empty}>No messages yet. Say hi! 👋</Text>}
       />
-
       <View style={s.bar}>
         <TextInput
           style={s.input}
@@ -75,8 +70,6 @@ export default function ChatScreen({ route, navigation }) {
           placeholder="Type a message..."
           placeholderTextColor="#555"
           multiline
-          returnKeyType="send"
-          onSubmitEditing={send}
           blurOnSubmit={false}
         />
         <TouchableOpacity
@@ -112,10 +105,7 @@ const s = StyleSheet.create({
     color: '#fff', fontSize: 15, maxHeight: 100,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  sendBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#00c853', alignItems: 'center', justifyContent: 'center',
-  },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#00c853', alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { backgroundColor: '#333' },
   sendIcon: { color: '#000', fontWeight: 'bold', fontSize: 18 },
 });

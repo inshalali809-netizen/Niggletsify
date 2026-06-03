@@ -3,38 +3,27 @@ import { FIREBASE_CONFIG } from './firebaseConfig';
 
 const DB = FIREBASE_CONFIG.databaseURL;
 
-const getToken = async () => {
-  let user = await authService.currentUser();
-  if (!user) return null;
-  return user.idToken;
-};
+const getToken = () => authService.getUser()?.idToken || '';
 
 const dbGet = async (path) => {
-  const token = await getToken();
+  const token = getToken();
   const res = await fetch(`${DB}/${path}.json?auth=${token}`);
-  if (res.status === 401) {
-    const user = await authService.refreshToken();
-    if (!user) return null;
-    const res2 = await fetch(`${DB}/${path}.json?auth=${user.idToken}`);
-    return res2.json();
-  }
+  if (!res.ok) return null;
   return res.json();
 };
 
 const dbSet = async (path, data) => {
-  const token = await getToken();
+  const token = getToken();
   await fetch(`${DB}/${path}.json?auth=${token}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
 };
 
 const dbPush = async (path, data) => {
-  const token = await getToken();
+  const token = getToken();
   const res = await fetch(`${DB}/${path}.json?auth=${token}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   return res.json();
@@ -42,79 +31,65 @@ const dbPush = async (path, data) => {
 
 export const chatService = {
   async sendMessage(chatId, text) {
-    const user = await authService.currentUser();
-    const msg = {
-      text,
-      type: 'text',
-      senderId: user.uid,
-      senderName: user.displayName,
-      timestamp: Date.now(),
-    };
-    await dbPush(`messages/${chatId}`, msg);
-    await dbSet(`chats/${chatId}/lastMessage`, {
-      text,
-      timestamp: Date.now(),
-      senderId: user.uid,
-    });
+    const user = authService.getUser();
+    await dbPush(`messages/${chatId}`, { text, type: 'text', senderId: user.uid, senderName: user.displayName, timestamp: Date.now() });
+    await dbSet(`chats/${chatId}/lastMessage`, { text, timestamp: Date.now(), senderId: user.uid });
   },
 
   listenToMessages(chatId, callback) {
-    let lastTimestamp = 0;
+    let active = true;
+    let last = 0;
     const poll = async () => {
+      if (!active) return;
       try {
         const data = await dbGet(`messages/${chatId}`);
+        if (!active) return;
         if (data && typeof data === 'object') {
-          const msgs = Object.values(data)
-            .sort((a, b) => a.timestamp - b.timestamp);
-          if (msgs.length > 0 && msgs[msgs.length - 1].timestamp !== lastTimestamp) {
-            lastTimestamp = msgs[msgs.length - 1].timestamp;
+          const msgs = Object.values(data).sort((a, b) => a.timestamp - b.timestamp);
+          if (msgs.length > 0 && msgs[msgs.length-1].timestamp !== last) {
+            last = msgs[msgs.length-1].timestamp;
             callback(msgs);
           }
+        } else {
+          callback([]);
         }
-      } catch (e) {}
+      } catch (e) { if (active) callback([]); }
     };
     poll();
-    const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
+    const iv = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(iv); };
   },
 
   async getChats() {
-    const user = await authService.currentUser();
+    const user = authService.getUser();
+    if (!user) return [];
     const chatIds = await dbGet(`userChats/${user.uid}`);
-    if (!chatIds) return [];
+    if (!chatIds || typeof chatIds !== 'object') return [];
     const ids = Object.keys(chatIds);
-    const chats = await Promise.all(
-      ids.map(id => dbGet(`chats/${id}`))
-    );
-    return chats
-      .filter(Boolean)
-      .sort((a, b) => (b.lastMessage?.timestamp || b.createdAt) - (a.lastMessage?.timestamp || a.createdAt));
+    const chats = await Promise.all(ids.map(id => dbGet(`chats/${id}`)));
+    return chats.filter(Boolean).sort((a, b) => (b.lastMessage?.timestamp || b.createdAt) - (a.lastMessage?.timestamp || a.createdAt));
   },
 
   listenToChats(callback) {
+    let active = true;
     const poll = async () => {
+      if (!active) return;
       try {
         const chats = await chatService.getChats();
-        callback(chats);
-      } catch (e) {}
+        if (active) callback(chats);
+      } catch (e) { if (active) callback([]); }
     };
     poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
+    const iv = setInterval(poll, 5000);
+    return () => { active = false; clearInterval(iv); };
   },
 
   async createDirectChat(otherUserId, otherUserName) {
-    const user = await authService.currentUser();
+    const user = authService.getUser();
     const chatId = [user.uid, otherUserId].sort().join('_');
     const existing = await dbGet(`chats/${chatId}`);
     if (!existing) {
-      await dbSet(`chats/${chatId}`, {
-        id: chatId,
-        type: 'direct',
-        members: { [user.uid]: true, [otherUserId]: true },
-        memberNames: { [user.uid]: user.displayName, [otherUserId]: otherUserName },
-        createdAt: Date.now(),
-      });
+      await dbSet(`chats/${chatId}`, { id: chatId, type: 'direct', members: { [user.uid]: true, [otherUserId]: true }, memberNames: { [user.uid]: user.displayName, [otherUserId]: otherUserName }, createdAt: Date.now() });
       await dbSet(`userChats/${user.uid}/${chatId}`, true);
       await dbSet(`userChats/${otherUserId}/${chatId}`, true);
     }
@@ -128,9 +103,9 @@ export const chatService = {
   },
 
   async getUsers() {
-    const user = await authService.currentUser();
+    const user = authService.getUser();
     const data = await dbGet('users');
     if (!data) return [];
-    return Object.values(data).filter(u => u.uid !== user.uid);
+    return Object.values(data).filter(u => u.uid !== user?.uid);
   },
 };
