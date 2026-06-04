@@ -8,14 +8,23 @@ import { chatService } from '../services/chatService';
 import moment from 'moment';
 
 export default function ChatScreen({ route, navigation }) {
-  const { chatId, chatName } = route.params;
+  const { chatId, chatName, isGroup } = route.params;
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const uid = authService.getUser()?.uid || '';
   const listRef = useRef();
 
   useEffect(() => {
-    navigation.setOptions({ title: chatName });
+    navigation.setOptions({
+      title: chatName,
+      headerRight: isGroup ? () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('GroupInfo', { chatId, chatName })}
+          style={{ marginRight: 16 }}>
+          <Text style={{ fontSize: 22 }}>ℹ️</Text>
+        </TouchableOpacity>
+      ) : undefined,
+    });
   }, []);
 
   useEffect(() => {
@@ -95,16 +104,8 @@ const s = StyleSheet.create({
   msgText: { color: '#fff', fontSize: 15, lineHeight: 22 },
   time: { fontSize: 10, color: '#ffffff44', marginTop: 3, marginHorizontal: 4 },
   empty: { textAlign: 'center', color: '#555', marginTop: 40, fontSize: 15 },
-  bar: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    padding: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', gap: 8,
-  },
-  input: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10,
-    color: '#fff', fontSize: 15, maxHeight: 100,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
+  bar: { flexDirection: 'row', alignItems: 'flex-end', padding: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', gap: 8 },
+  input: { flex: 1, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 15, maxHeight: 100, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#00c853', alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { backgroundColor: '#333' },
   sendIcon: { color: '#000', fontWeight: 'bold', fontSize: 18 },

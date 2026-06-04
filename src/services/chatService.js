@@ -50,9 +50,7 @@ export const chatService = {
             last = msgs[msgs.length-1].timestamp;
             callback(msgs);
           }
-        } else {
-          callback([]);
-        }
+        } else { callback([]); }
       } catch (e) { if (active) callback([]); }
     };
     poll();
@@ -92,6 +90,22 @@ export const chatService = {
       await dbSet(`chats/${chatId}`, { id: chatId, type: 'direct', members: { [user.uid]: true, [otherUserId]: true }, memberNames: { [user.uid]: user.displayName, [otherUserId]: otherUserName }, createdAt: Date.now() });
       await dbSet(`userChats/${user.uid}/${chatId}`, true);
       await dbSet(`userChats/${otherUserId}/${chatId}`, true);
+    }
+    return chatId;
+  },
+
+  async createGroupChat(name, memberIds, memberObjects) {
+    const user = authService.getUser();
+    const chatId = 'group_' + Date.now();
+    const members = { [user.uid]: true };
+    const memberNames = { [user.uid]: user.displayName };
+    memberIds.forEach((id, i) => {
+      members[id] = true;
+      memberNames[id] = memberObjects[i].displayName;
+    });
+    await dbSet(`chats/${chatId}`, { id: chatId, name, type: 'group', members, memberNames, createdAt: Date.now() });
+    for (const id of [...memberIds, user.uid]) {
+      await dbSet(`userChats/${id}/${chatId}`, true);
     }
     return chatId;
   },
