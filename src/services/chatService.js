@@ -2,7 +2,6 @@ import { authService } from './authService';
 import { FIREBASE_CONFIG } from './firebaseConfig';
 
 const DB = FIREBASE_CONFIG.databaseURL;
-
 const getToken = () => authService.getUser()?.idToken || '';
 
 const dbGet = async (path) => {
@@ -34,6 +33,18 @@ export const chatService = {
     const user = authService.getUser();
     await dbPush(`messages/${chatId}`, { text, type: 'text', senderId: user.uid, senderName: user.displayName, timestamp: Date.now() });
     await dbSet(`chats/${chatId}/lastMessage`, { text, timestamp: Date.now(), senderId: user.uid });
+  },
+
+  async sendImageMessage(chatId, base64Data) {
+    const user = authService.getUser();
+    await dbPush(`messages/${chatId}`, { imageData: base64Data, type: 'image', senderId: user.uid, senderName: user.displayName, timestamp: Date.now() });
+    await dbSet(`chats/${chatId}/lastMessage`, { text: '📷 Photo', timestamp: Date.now(), senderId: user.uid });
+  },
+
+  async sendVoiceMessage(chatId, base64Data, duration) {
+    const user = authService.getUser();
+    await dbPush(`messages/${chatId}`, { voiceData: base64Data, duration, type: 'voice', senderId: user.uid, senderName: user.displayName, timestamp: Date.now() });
+    await dbSet(`chats/${chatId}/lastMessage`, { text: `🎤 Voice message`, timestamp: Date.now(), senderId: user.uid });
   },
 
   listenToMessages(chatId, callback) {
